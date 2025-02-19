@@ -221,12 +221,12 @@ body:not(.white) a:visited{
     background-color: var(--blur-bg);
 }
 
-.conversations i, .bottom_buttons i {
+.conversations i, .bottom_buttons i, .mem0 button i {
     color: var(--conversations);
     cursor: pointer;
 }
 
-.bottom_buttons i {
+.bottom_buttons i, .mem0 button i {
     width: 14px;
 }
 
@@ -374,6 +374,29 @@ body:not(.white) a:visited{
 
 .message .content .audio{
     display: flex;
+}
+
+.message .reasoning_text.final:not(.hidden), .message .reasoning_title {
+    margin-bottom: var(--inner-gap);
+    padding-bottom: var(--inner-gap);
+    border-bottom: 1px solid var(--colour-3);
+    overflow: hidden;
+}
+
+.message .reasoning_text.final {
+    max-height: 1000px;
+    transition: max-height 0.25s ease-in;
+}
+
+.message .reasoning_text.final.hidden {
+    transition: max-height 0.15s ease-out;
+    max-height: 0;
+    display: block;
+    overflow: hidden;
+}
+
+.message .reasoning_title {
+    cursor: pointer;
 }
 
 .message .user i {
@@ -531,7 +554,6 @@ input-count .text {
 
 .stop_generating, .toolbar .regenerate {
     position: absolute;
-    z-index: 100000;
     top: 0;
     right: 0;
     animation: show_popup 0.4s;
@@ -661,8 +683,12 @@ input-count .text {
 .file-label:has(> input:valid),
 .file-label.selected,
 .micro-label.recognition,
-#search.active a i {
+#search.active i {
     color: var(--accent);
+}
+
+#search.active {
+    border-color: var(--accent);
 }
 
 label[for="image"] {
@@ -776,7 +802,7 @@ form input:checked+label:after {
     color: var(--colour-3);
 }
 
-select {
+select, input.model {
     border-radius: 8px;
     backdrop-filter: blur(20px);
     cursor: pointer;
@@ -848,6 +874,7 @@ button.regenerate_button, button.continue_button, button.options_button {
 }
 
 select:hover,
+input.model:hover
 .buttons button:hover,
 .stop_generating button:hover,
 .toolbar .regenerate button:hover,
@@ -925,7 +952,7 @@ select:hover,
 }
 
 @media only screen and (min-width: 40em) {
-    select {
+    select, input.model {
         width: 200px;
     }
     .field {
@@ -948,10 +975,10 @@ select:hover,
     }
 }
 
-.input-box {
+.input-area {
     display: flex;
     align-items: center;
-    cursor: pointer;
+    padding: 10px;
 }
 
 .info {
@@ -975,7 +1002,7 @@ select:hover,
     margin: 4px 0;
 }
 
-.bottom_buttons button {
+.bottom_buttons button, .mem0 button {
     padding: 8px 12px;
     display: flex;
     gap: 18px;
@@ -988,10 +1015,15 @@ select:hover,
     width: 100%;
 }
 
+.mem0 button {
+    width: auto;
+}
+
 .bottom_buttons button a,
 .bottom_buttons button span,
 .bottom_buttons .info a,
-.bottom_buttons .info i {
+.bottom_buttons .info i,
+.mem0 button span {
     color: var(--colour-3);
     font-weight: 500;
 }
@@ -1075,23 +1107,22 @@ ul {
 
 .mobile-sidebar {
     display: none;
-    position: absolute;
-    z-index: 100000;
-    top: 0;
-    left: 0;
-    margin: 10px;
-    font-size: 20px;
-    cursor: pointer;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    background-color: var(--blur-bg);
-    border-radius: 10px;
-    border: 1px solid var(--blur-border);
+    position: fixed;
+    z-index: 1000;
+    top: 10px;
+    right: 10px;
     width: 40px;
     height: 40px;
+    background-color: var(--blur-bg);
+    border: 1px solid var(--blur-border);
+    border-radius: 10px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    cursor: pointer;
     justify-content: center;
     align-items: center;
-    transition: 0.33s;
+    transition: all 0.3s ease;
+    padding: 10px 12px;
 }
 
 .mobile-sidebar i {
@@ -1106,7 +1137,6 @@ ul {
     padding-left: 10px;
     padding-top: 10px;
 }
-
 @media screen and (max-width: 990px) {
     .conversations {
         display: none;
@@ -1123,6 +1153,7 @@ ul {
         align-items: flex-start;
         flex-wrap: wrap;
         gap: 8px;
+        padding-left: 4px;
     }
 
     .mobile-sidebar {
@@ -1135,6 +1166,10 @@ ul {
 
     .settings h3 {
         text-align: center;
+    }
+
+    .field.collapsible {
+        flex-direction: column;
     }
 }
 
@@ -1290,17 +1325,18 @@ ul {
     border: 1px dashed #e4d4ffa6;
     border-radius: 4px;
     cursor: pointer;
-    padding-left: 4px;
-    padding-right: 5px;
-    padding-top: 2px;
-    padding-bottom: 2px;
     position: absolute;
     bottom: 8px;
-    right: 8px;
+    right: 4px;
+    padding: 4px;
 }
 
 #send-button:hover {
     border: 1px solid #e4d4ffc9;
+}
+
+#send-button i {
+    padding: 2px;
 }
 
 form textarea {
@@ -1386,6 +1422,54 @@ form .field.saved .fa-xmark {
     line-height: 30px;
 }
 
+.field.collapsible {
+    border: 1px solid var(--blur-border);
+    border-radius: var(--border-radius-1);
+    overflow: hidden;
+    margin-bottom: 10px;
+    padding-right: 0;
+}
+
+.collapsible-header {
+    padding: 10px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--blur-bg);
+}
+
+.collapsible-header:hover {
+    background-color: var(--button-hover);
+}
+
+.collapsible-content {
+    padding: 0 10px;
+}
+
+.collapsible-content.api-key {
+    width: 100%;
+}
+
+.collapsible-content.hidden {
+    display: none;
+}
+
+.provider-item {
+    padding: 5px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.fa-chevron-down {
+    transition: transform 0.3s ease;
+}
+
+.collapsible-header.active .fa-chevron-down {
+    transform: rotate(180deg);
+}
+
 ::-webkit-scrollbar-track {
     background: var(--scrollbar);
 }
@@ -1407,11 +1491,17 @@ form .field.saved .fa-xmark {
 
 #message-input {
     height: 90px;
-    margin-left: 20px;
+    flex: 1;
+    padding: 10px;
+    padding-left: 24px;
+    border-radius: 20px;
+    font-size: 14px;
+    margin-right: 10px;
+    outline: none;
     max-height: 200px;
 }
 
-.hidden {
+.hidden, input.hidden {
     display: none;
 }
 
@@ -1442,5 +1532,42 @@ form .field.saved .fa-xmark {
     }
     .box {
         backdrop-filter: none;
+    }
+}
+
+
+/* Basic adaptation */
+.row {
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.conversations, .settings, .conversation {
+    flex: 1 1 300px;
+    min-width: 0;
+    height: 100%;
+}
+
+/* Media queries for mobile devices */
+@media (max-width: 768px) {
+    .row {
+        flex-direction: column;
+    }
+    
+    .conversations, .settings {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+    }
+    
+    .conversation {
+        order: -1;
+        min-height: 80vh;
+    }
+}
+
+@media (max-width: 480px) {
+    .info .convo-title {
+        font-size: 12px;
     }
 }

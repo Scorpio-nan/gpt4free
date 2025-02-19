@@ -22,12 +22,13 @@ from .base_provider import AbstractProvider, ProviderModelMixin
 from .helper import format_prompt_max_length
 from .openai.har_file import get_headers, get_har_files
 from ..typing import CreateResult, Messages, ImagesType
-from ..errors import MissingRequirementsError, NoValidHarFileError
+from ..errors import MissingRequirementsError, NoValidHarFileError, MissingAuthError
 from ..requests.raise_for_status import raise_for_status
-from ..providers.response import BaseConversation, JsonConversation, RequestLogin, Parameters
+from ..providers.response import BaseConversation, JsonConversation, RequestLogin, Parameters, ImageResponse
 from ..providers.asyncio import get_running_loop
 from ..requests import get_nodriver
-from ..image import ImageResponse, to_bytes, is_accepted_format
+from ..image import to_bytes, is_accepted_format
+from .helper import get_last_user_message
 from .. import debug
 
 class Conversation(JsonConversation):
@@ -39,12 +40,15 @@ class Conversation(JsonConversation):
 class Copilot(AbstractProvider, ProviderModelMixin):
     label = "Microsoft Copilot"
     url = "https://copilot.microsoft.com"
+    
     working = True
     supports_stream = True
+    
     default_model = "Copilot"
     models = [default_model]
     model_aliases = {
-        "gpt-4": "Copilot",
+        "gpt-4": default_model,
+        "gpt-4o": default_model,
     }
 
     websocket_url = "wss://copilot.microsoft.com/c/api/chat?api-version=2"
@@ -66,7 +70,6 @@ class Copilot(AbstractProvider, ProviderModelMixin):
         conversation: BaseConversation = None,
         return_conversation: bool = False,
         api_key: str = None,
-        web_search: bool = False,
         **kwargs
     ) -> CreateResult:
         if not has_curl_cffi:
@@ -90,7 +93,6 @@ class Copilot(AbstractProvider, ProviderModelMixin):
                         cls._access_token, cls._cookies = asyncio.run(get_access_token_and_cookies(cls.url, proxy))
                     else:
                         raise h
-            yield Parameters(**{"api_key": cls._access_token, "cookies": cls._cookies if isinstance(cls._cookies, dict) else {c.name: c.value for c in cls._cookies}})
             websocket_url = f"{websocket_url}&accessToken={quote(cls._access_token)}"
             headers = {"authorization": f"Bearer {cls._access_token}"}
 
@@ -118,6 +120,8 @@ class Copilot(AbstractProvider, ProviderModelMixin):
             # else:
             #     clarity_token = None
             response = session.get("https://copilot.microsoft.com/c/api/user")
+            if response.status_code == 401:
+                raise MissingAuthError("Status 401: Invalid access token")
             raise_for_status(response)
             user = response.json().get('firstName')
             if user is None:
@@ -136,7 +140,7 @@ class Copilot(AbstractProvider, ProviderModelMixin):
             else:
                 conversation_id = conversation.conversation_id
                 if prompt is None:
-                    prompt = messages[-1]["content"]
+                    prompt = get_last_user_message(messages)
                 debug.log(f"Copilot: Use conversation: {conversation_id}")
 
             uploaded_images = []
@@ -203,31 +207,34 @@ class Copilot(AbstractProvider, ProviderModelMixin):
                 yield Parameters(**{"cookies": {c.name: c.value for c in session.cookies.jar}})
 
 async def get_access_token_and_cookies(url: str, proxy: str = None, target: str = "ChatAI",):
-    browser = await get_nodriver(proxy=proxy, user_data_dir="copilot")
-    page = await browser.get(url)
-    access_token = None
-    while access_token is None:
-        access_token = await page.evaluate("""
-            (() => {
-                for (var i = 0; i < localStorage.length; i++) {
-                    try {
-                        item = JSON.parse(localStorage.getItem(localStorage.key(i)));
-                        if (item.credentialType == "AccessToken" 
-                            && item.expiresOn > Math.floor(Date.now() / 1000)
-                            && item.target.includes("target")) {
-                            return item.secret;
-                        }
-                    } catch(e) {}
-                }
-            })()
-        """.replace('"target"', json.dumps(target)))
-        if access_token is None:
-            await asyncio.sleep(1)
-    cookies = {}
-    for c in await page.send(nodriver.cdp.network.get_cookies([url])):
-        cookies[c.name] = c.value
-    await page.close()
-    return access_token, cookies
+    browser, stop_browser = await get_nodriver(proxy=proxy, user_data_dir="copilot")
+    try:
+        page = await browser.get(url)
+        access_token = None
+        while access_token is None:
+            access_token = await page.evaluate("""
+                (() => {
+                    for (var i = 0; i < localStorage.length; i++) {
+                        try {
+                            item = JSON.parse(localStorage.getItem(localStorage.key(i)));
+                            if (item.credentialType == "AccessToken" 
+                                && item.expiresOn > Math.floor(Date.now() / 1000)
+                                && item.target.includes("target")) {
+                                return item.secret;
+                            }
+                        } catch(e) {}
+                    }
+                })()
+            """.replace('"target"', json.dumps(target)))
+            if access_token is None:
+                await asyncio.sleep(1)
+        cookies = {}
+        for c in await page.send(nodriver.cdp.network.get_cookies([url])):
+            cookies[c.name] = c.value
+        await page.close()
+        return access_token, cookies
+    finally:
+        stop_browser()
 
 def readHAR(url: str):
     api_key = None

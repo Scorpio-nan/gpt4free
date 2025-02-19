@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import json
-import uuid
 from aiohttp import ClientSession, FormData
 
 from ...typing import AsyncResult, Messages
 from ...requests import raise_for_status
 from ..base_provider import AsyncGeneratorProvider, ProviderModelMixin
-from ..helper import format_prompt
+from ..helper import format_prompt, get_last_user_message
 from ...providers.response import JsonConversation, TitleGeneration
 
 class CohereForAI(AsyncGeneratorProvider, ProviderModelMixin):
@@ -24,12 +23,10 @@ class CohereForAI(AsyncGeneratorProvider, ProviderModelMixin):
         "command-r",
         "command-r7b-12-2024",
     ]
-    
     model_aliases = {
         "command-r-plus": "command-r-plus-08-2024",
         "command-r": "command-r-08-2024",
         "command-r7b": "command-r7b-12-2024",
-
     }
 
     @classmethod
@@ -61,7 +58,7 @@ class CohereForAI(AsyncGeneratorProvider, ProviderModelMixin):
         ) as session:
             system_prompt = "\n".join([message["content"] for message in messages if message["role"] == "system"])
             messages = [message for message in messages if message["role"] != "system"]
-            inputs = format_prompt(messages) if conversation is None else messages[-1]["content"]
+            inputs = format_prompt(messages) if conversation is None else get_last_user_message(messages)
             if conversation is None or conversation.model != model or conversation.preprompt != system_prompt:
                 data = {"model": model, "preprompt": system_prompt}
                 async with session.post(cls.conversation_url, json=data, proxy=proxy) as response:
@@ -81,7 +78,6 @@ class CohereForAI(AsyncGeneratorProvider, ProviderModelMixin):
                 data = node["data"]
                 message_id = data[data[data[data[0]["messages"]][-1]]["id"]]
             data = FormData()
-            inputs = messages[-1]["content"]
             data.add_field(
                 "data",
                 json.dumps({"inputs": inputs, "id": message_id, "is_retry": False, "is_continue": False, "web_search": False, "tools": []}),

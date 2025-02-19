@@ -96,7 +96,7 @@ def scrape_text(html: str, max_words: int = None, add_source=True, count_images:
         if count_images > 0:
             image = paragraph.select_one(image_select)
             if image:
-                title = paragraph.get("title") or paragraph.text
+                title = str(paragraph.get("title", paragraph.text))
                 if title:
                     yield f"!{format_link(image['src'], title)}\n"
                     if max_words is not None:
@@ -104,7 +104,7 @@ def scrape_text(html: str, max_words: int = None, add_source=True, count_images:
                     count_images -= 1
                 continue
 
-        for line in paragraph.text.splitlines():
+        for line in paragraph.get_text(" ").splitlines():
             words = [word for word in line.split() if word]
             count = len(words)
             if not count:
@@ -130,16 +130,16 @@ async def fetch_and_scrape(session: ClientSession, url: str, max_words: int = No
     try:
         bucket_dir: Path = Path(get_cookies_dir()) / ".scrape_cache" / "fetch_and_scrape"
         bucket_dir.mkdir(parents=True, exist_ok=True)
-        md5_hash = hashlib.md5(url.encode()).hexdigest()
+        md5_hash = hashlib.md5(url.encode(errors="ignore")).hexdigest()
         cache_file = bucket_dir / f"{quote_plus(url.split('?')[0].split('//')[1].replace('/', ' ')[:48])}.{datetime.date.today()}.{md5_hash[:16]}.cache"
         if cache_file.exists():
             return cache_file.read_text()
         async with session.get(url) as response:
             if response.status == 200:
-                html = await response.text()
+                html = await response.text(errors="replace")
                 text = "".join(scrape_text(html, max_words, add_source))
-                with open(cache_file, "w") as f:
-                    f.write(text)
+                with open(cache_file, "wb") as f:
+                    f.write(text.encode(errors="replace"))
                 return text
     except (ClientError, asyncio.TimeoutError):
         return
@@ -192,9 +192,13 @@ async def search(query: str, max_results: int = 5, max_words: int = 2500, backen
         return SearchResults(formatted_results, used_words)
 
 async def do_search(prompt: str, query: str = None, instructions: str = DEFAULT_INSTRUCTIONS, **kwargs) -> str:
+    if instructions and instructions in prompt:
+        return prompt # We have already added search results
+    if prompt.startswith("##") and query is None:
+        return prompt # We have no search query
     if query is None:
-        query = spacy_get_keywords(prompt)
-    json_bytes = json.dumps({"query": query, **kwargs}, sort_keys=True).encode()
+        query = prompt.strip().splitlines()[0] # Use the first line as the search query
+    json_bytes = json.dumps({"query": query, **kwargs}, sort_keys=True).encode(errors="ignore")
     md5_hash = hashlib.md5(json_bytes).hexdigest()
     bucket_dir: Path = Path(get_cookies_dir()) / ".scrape_cache" / f"web_search" / f"{datetime.date.today()}"
     bucket_dir.mkdir(parents=True, exist_ok=True)
@@ -205,8 +209,8 @@ async def do_search(prompt: str, query: str = None, instructions: str = DEFAULT_
     else:
         search_results = await search(query, **kwargs)
         if search_results.results:
-            with cache_file.open("w") as f:
-                f.write(str(search_results))
+            with cache_file.open("wb") as f:
+                f.write(str(search_results).encode(errors="replace"))
     if instructions:
         new_prompt = f"""
 {search_results}

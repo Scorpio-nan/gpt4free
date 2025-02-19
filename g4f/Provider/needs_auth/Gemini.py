@@ -19,12 +19,13 @@ from ... import debug
 from ...typing import Messages, Cookies, ImagesType, AsyncResult, AsyncIterator
 from ..base_provider import AsyncGeneratorProvider, ProviderModelMixin
 from ..helper import format_prompt, get_cookies
-from ...providers.response import JsonConversation, SynthesizeData, RequestLogin
+from ...providers.response import JsonConversation, SynthesizeData, RequestLogin, ImageResponse
 from ...requests.raise_for_status import raise_for_status
 from ...requests.aiohttp import get_connector
 from ...requests import get_nodriver
 from ...errors import MissingAuthError
-from ...image import ImageResponse, to_bytes
+from ...image import to_bytes
+from ..helper import get_last_user_message
 from ... import debug
 
 REQUEST_HEADERS = {
@@ -58,15 +59,14 @@ class Gemini(AsyncGeneratorProvider, ProviderModelMixin):
     
     needs_auth = True
     working = True
+    use_nodriver = True
     
     default_model = 'gemini'
-    image_models = ["gemini"]
-    default_vision_model = "gemini"
-    models = ["gemini", "gemini-1.5-flash", "gemini-1.5-pro"]
-    model_aliases = {
-        "gemini-flash": "gemini-1.5-flash",
-        "gemini-pro": "gemini-1.5-pro",
-    }
+    default_image_model = default_model
+    default_vision_model = default_model
+    image_models = [default_image_model]
+    models = [default_model, "gemini-1.5-flash", "gemini-1.5-pro"]
+
     synthesize_content_type = "audio/vnd.wav"
     
     _cookies: Cookies = None
@@ -79,17 +79,20 @@ class Gemini(AsyncGeneratorProvider, ProviderModelMixin):
             if debug.logging:
                 print("Skip nodriver login in Gemini provider")
             return
-        browser = await get_nodriver(proxy=proxy, user_data_dir="gemini")
-        login_url = os.environ.get("G4F_LOGIN_URL")
-        if login_url:
-            yield RequestLogin(cls.label, login_url)
-        page = await browser.get(f"{cls.url}/app")
-        await page.select("div.ql-editor.textarea", 240)
-        cookies = {}
-        for c in await page.send(nodriver.cdp.network.get_cookies([cls.url])):
-            cookies[c.name] = c.value
-        await page.close()
-        cls._cookies = cookies
+        browser, stop_browser = await get_nodriver(proxy=proxy, user_data_dir="gemini")
+        try:
+            login_url = os.environ.get("G4F_LOGIN_URL")
+            if login_url:
+                yield RequestLogin(cls.label, login_url)
+            page = await browser.get(f"{cls.url}/app")
+            await page.select("div.ql-editor.textarea", 240)
+            cookies = {}
+            for c in await page.send(nodriver.cdp.network.get_cookies([cls.url])):
+                cookies[c.name] = c.value
+            await page.close()
+            cls._cookies = cookies
+        finally:
+            stop_browser()
 
     @classmethod
     async def create_async_generator(
@@ -105,7 +108,7 @@ class Gemini(AsyncGeneratorProvider, ProviderModelMixin):
         language: str = "en",
         **kwargs
     ) -> AsyncResult:
-        prompt = format_prompt(messages) if conversation is None else messages[-1]["content"]
+        prompt = format_prompt(messages) if conversation is None else get_last_user_message(messages)
         cls._cookies = cookies or cls._cookies or get_cookies(".google.com", False, True)
         base_connector = get_connector(connector, proxy)
 

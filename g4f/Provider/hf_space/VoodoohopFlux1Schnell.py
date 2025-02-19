@@ -4,22 +4,23 @@ from aiohttp import ClientSession
 import json
 
 from ...typing import AsyncResult, Messages
-from ...image import ImageResponse
+from ...providers.response import ImageResponse
 from ...errors import ResponseError
 from ...requests.raise_for_status import raise_for_status
+from ..helper import format_image_prompt
 from ..base_provider import AsyncGeneratorProvider, ProviderModelMixin
 
 class VoodoohopFlux1Schnell(AsyncGeneratorProvider, ProviderModelMixin):
     url = "https://voodoohop-flux-1-schnell.hf.space"
     api_endpoint = "https://voodoohop-flux-1-schnell.hf.space/call/infer"
-    
+
     working = True
 
     default_model = "voodoohop-flux-1-schnell"
     default_image_model = default_model
-    image_models = [default_image_model]
+    model_aliases = {"flux-schnell": default_model, "flux": default_model}
+    image_models = [default_image_model, *model_aliases.keys()]
     models = image_models
-    model_aliases = {"flux-schnell": default_model}
 
     @classmethod
     async def create_async_generator(
@@ -37,10 +38,7 @@ class VoodoohopFlux1Schnell(AsyncGeneratorProvider, ProviderModelMixin):
     ) -> AsyncResult:
         width = max(32, width - (width % 8))
         height = max(32, height - (height % 8))
-
-        if prompt is None:
-            prompt = messages[-1]["content"]
-
+        prompt = format_image_prompt(messages, prompt)
         payload = {
             "data": [
                 prompt,
