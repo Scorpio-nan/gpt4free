@@ -30,8 +30,6 @@ docker pull hlohaus789/g4f
 
 ## 🆕 What's New
 
-![1000032415](https://github.com/user-attachments/assets/4caab977-eb05-48ed-b750-3ad082bcfcae)
-
 - **Explore the latest features and updates**  
   Find comprehensive details on our [Releases Page](https://github.com/xtekky/gpt4free/releases).  
 
@@ -51,9 +49,13 @@ docker pull hlohaus789/g4f
 
 Is your site on this repository and you want to take it down? Send an email to takedown@g4f.ai with proof it is yours and it will be removed as fast as possible. To prevent reproduction please secure your API. 😉
 
-## 🚀 G4F on GitHub Pages [![HuggingSpace](https://github.com/user-attachments/assets/1d859e8a-d6fa-416f-a213-ccc26aa11e90)](https://g4f.dev/)
+## 🚀 **Experience Live G4F**
 
-> Explore the [G4F on GitHub Pages](https://g4f.dev/).
+Want to see G4F in action? Explore a live demo now!
+
+[**Click here to explore the live G4F demo!**](https://github.com/user-attachments/assets/83519200-2f27-48c6-9fc3-bff0fcd96f41)
+
+Curious to see what G4F can do? Dive into a live demonstration and visit the [official g4f.dev homepage](https://g4f.dev/) for more.
 
 ---
 
@@ -112,7 +114,7 @@ docker run -p 8080:8080 -p 7900:7900 \
 mkdir -p ${PWD}/har_and_cookies ${PWD}/generated_media
 chown -R 1000:1000 ${PWD}/har_and_cookies ${PWD}/generated_media
 docker run \
-  -p 1337:1337 -p 8080:1337 \
+  -p 1337:8080 -p 8080:8080 \
   -v ${PWD}/har_and_cookies:/app/har_and_cookies \
   -v ${PWD}/generated_media:/app/generated_media \
   hlohaus789/g4f:latest-slim
