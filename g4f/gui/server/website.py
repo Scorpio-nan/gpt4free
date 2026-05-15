@@ -176,6 +176,7 @@ class Website:
         PLAYGROUND_URL = "https://raw.githubusercontent.com/gpt4free/playground/refs/heads/main/"
         if not filename or filename.endswith("/"):
             filename = "index.html"
+        filename += ("" if "." in filename else ".html")
         # Serve from local ./playground directory if present
         local_dir = os.path.abspath("./playground")
         local_path = os.path.normpath(os.path.join(local_dir, filename))
